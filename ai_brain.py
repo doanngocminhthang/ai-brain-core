@@ -1,7 +1,13 @@
 """
-HỆ THỐNG QUẢN TRỊ TRÍ NHỚ VÀ TIẾN ĐỘ ĐA TÁC NHÂN (AI BRAIN CORE)
-Tối ưu cho Antigravity & Claude Code (Laptop & Máy bàn)
-Quản lý 38 Module, 3 Trụ cột Lâm nghiệp, Đối chiếu Task Dev, Kho Sơ đồ & Đường dẫn tài liệu
+HỆ THỐNG QUẢN TRỊ TRÍ NHỚ VÀ TOÀN DIỆN KỸ THUẬT PHẦN MỀM (AI BRAIN ENTERPRISE)
+Quản lý:
+1. 38 Module & 3 Trụ cột Lâm nghiệp (Tiến độ %, Deadline, Tech Lead)
+2. Phân rã Kỹ thuật sâu: Chức năng con -> Công nghệ -> Thuật toán -> Bộ lọc
+3. Tra cứu Tài liệu & Bản vẽ (Tác giả, Ngày tạo, Phụ trách, Đường dẫn tuyệt đối)
+4. Kho Sơ đồ Mermaid (Chủ đề, Người vẽ, Người duyệt, Tags)
+5. Giám sát Git & Pull Requests (PR, Branch, Commit, Người làm, Reviewer)
+6. Nhật ký Kiểm thử QA/Test (File test, Người test, Ngày test, FPS, Latency, Pass/Fail)
+7. Ký ức Lỗi & Sửa lỗi (Troubleshooting Memory)
 """
 import sys
 import os
@@ -17,63 +23,108 @@ def get_conn():
     conn.row_factory = sqlite3.Row
     return conn
 
-def init_db():
+def init_enterprise_db():
     conn = get_conn()
     cur = conn.cursor()
     cur.executescript("""
-    -- 1. BẢNG 3 TRỤ CỘT LỚN
+    DROP TABLE IF EXISTS modules;
+    DROP TABLE IF EXISTS pillars;
+    DROP TABLE IF EXISTS git_pull_requests;
+    DROP TABLE IF EXISTS qa_test_runs;
+    DROP TABLE IF EXISTS tech_breakdown;
+    DROP TABLE IF EXISTS document_catalog;
+    DROP TABLE IF EXISTS mermaid_vault;
+    DROP TABLE IF EXISTS error_memories;
+
+    -- 1. BẢNG 3 TRỤ CỘT
     CREATE TABLE IF NOT EXISTS pillars (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         description TEXT
     );
 
-    -- 2. BẢNG 38 MODULES (TIẾN ĐỘ % & CHẤT LƯỢNG)
+    -- 2. BẢNG 38 MODULES (TIẾN ĐỘ, THỜI HẠN, TECH LEAD)
     CREATE TABLE IF NOT EXISTS modules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         pillar_id TEXT NOT NULL REFERENCES pillars(id),
         code TEXT UNIQUE NOT NULL,
         name TEXT NOT NULL,
+        tech_lead TEXT DEFAULT 'Lead Dev',
         ssot_path TEXT NOT NULL,
         progress_pct INTEGER DEFAULT 0,
         quality_score TEXT DEFAULT 'A',
+        start_date TEXT,
+        deadline TEXT,
         status TEXT DEFAULT 'in_progress',
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- 3. BẢNG ĐỐI CHIẾU TASK CỦA DEV (DEV TASK MAPPING)
-    CREATE TABLE IF NOT EXISTS dev_tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        module_code TEXT NOT NULL REFERENCES modules(code),
-        dev_name TEXT NOT NULL,
-        task_title TEXT NOT NULL,
-        status TEXT DEFAULT 'in_progress', -- in_progress, review_pending, passed, failed
-        code_branch TEXT,
-        pr_link TEXT,
-        notes TEXT,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    -- 3. BẢNG PHÂN RÃ KỸ THUẬT SÂU (CHỨC NĂNG -> THUẬT TOÁN -> BỘ LỌC)
+    CREATE VIRTUAL TABLE IF NOT EXISTS tech_breakdown USING fts5(
+        module_code,
+        feature_name,
+        tech_stack,
+        algorithms,
+        filters,
+        developer,
+        notes
     );
 
-    -- 4. BẢNG CHỈ MỤC ĐƯỜNG DẪN & BẢN VẼ TÀI LIỆU (FTS5 TÌM KIẾM TRONG 0.001s)
-    CREATE VIRTUAL TABLE IF NOT EXISTS path_index USING fts5(
-        item_title,
-        item_type,     -- 'BẢN VẼ KIẾN TRÚC', 'TÀI LIỆU KỸ THUẬT', 'FILE CẤU HÌNH', 'THƯ MỤC SSOT', 'WEIGHTS MODEL'
+    -- 4. BẢNG CHỈ MỤC TÀI LIỆU & BẢN VẼ (TÁC GIẢ, NGƯỜI DUYỆT, TỪ KHÓA, PATH)
+    CREATE VIRTUAL TABLE IF NOT EXISTS document_catalog USING fts5(
+        title,
+        doc_type,
         full_path,
-        description,
+        author,
+        assignee,
+        category,
+        tags,
+        created_date,
         module_code
     );
 
-    -- 5. KHO SƠ ĐỒ MERMAID (FTS5 TÌM KIẾM NỘI DUNG)
+    -- 5. KHO SƠ ĐỒ MERMAID (CHỦ ĐỀ, NGƯỜI VẼ, NGƯỜI DUYỆT, TAGS)
     CREATE VIRTUAL TABLE IF NOT EXISTS mermaid_vault USING fts5(
         title,
         pillar_id,
         module_code,
         diagram_type,
         diagram_code,
+        author,
+        reviewer,
         tags
     );
 
-    -- 6. BẢNG KÝ ỨC LỖI & SỬA LỖI (TROUBLESHOOTING MEMORY)
+    -- 6. BẢNG THEO DÕI GIT & PULL REQUESTS
+    CREATE TABLE IF NOT EXISTS git_pull_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pr_number INTEGER UNIQUE,
+        title TEXT NOT NULL,
+        module_code TEXT,
+        author TEXT NOT NULL,
+        reviewer TEXT,
+        branch_name TEXT,
+        created_date TEXT,
+        status TEXT DEFAULT 'open', -- open, merged, closed
+        summary TEXT
+    );
+
+    -- 7. BẢNG NHẬT KÝ KIỂM THỬ & CHẤT LƯỢNG (QA / TESTING)
+    CREATE TABLE IF NOT EXISTS qa_test_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        module_code TEXT NOT NULL,
+        test_name TEXT NOT NULL,
+        test_file TEXT NOT NULL,
+        tester TEXT NOT NULL,
+        test_date TEXT NOT NULL,
+        environment TEXT DEFAULT 'Windows + Docker',
+        result TEXT DEFAULT 'PASSED', -- PASSED, FAILED
+        fps REAL,
+        latency_ms REAL,
+        error_log TEXT
+    );
+
+    -- 8. BỘ NHỚ LỖI VĨNH VIỄN (TROUBLESHOOTING MEMORY)
     CREATE VIRTUAL TABLE IF NOT EXISTS error_memories USING fts5(
         problem_summary,
         solution_steps,
@@ -84,97 +135,128 @@ def init_db():
     conn.commit()
     conn.close()
 
-def seed_full_ecosystem():
-    init_db()
+def seed_enterprise_data():
+    init_enterprise_db()
     conn = get_conn()
     cur = conn.cursor()
 
-    # 1. Nạp 3 Trụ cột
+    # 1. Trụ cột
     cur.executemany("INSERT OR REPLACE INTO pillars (id, name, description) VALUES (?, ?, ?)", [
         ("CHAY_RUNG", "1. AI GIÁM SÁT CHÁY RỪNG", "Camera PTZ, YOLO khói/lửa, FWI/Nesterov, Cảnh báo tức thời"),
         ("BIEN_DONG", "2. AI BIẾN ĐỘNG RỪNG", "Ảnh viễn thám Sentinel-2/Landsat, Chỉ số NDVI/NBR, Mất rừng"),
         ("AN_NINH", "3. AI AN NINH RỪNG", "Xâm nhập người/xe, Bẫy ảnh hồng ngoại, Cảnh báo âm thanh cưa máy")
     ])
 
-    # 2. Nạp đại diện trong 38 Modules
+    # 2. Modules với Deadline & Tech Lead
     cur.execute("DELETE FROM modules")
     modules = [
-        # Trụ cột Cháy rừng (Module 01 - 15)
-        ("CHAY_RUNG", "MOD_01", "Thu nhận RTSP Camera Dahua PTZ", "D:/main_workspace/dev/wildfire/camera_service/", 100, "A+", "completed"),
-        ("CHAY_RUNG", "MOD_02", "Nhận diện Khói Lửa YOLOv8", "D:/main_workspace/dev/wildfire/ai_models/smoke/", 85, "A", "in_progress"),
-        ("CHAY_RUNG", "MOD_03", "Trạm Khí tượng & Chỉ số Nesterov", "D:/main_workspace/dev/wildfire/weather_fwi/", 60, "B+", "in_progress"),
-        ("CHAY_RUNG", "MOD_04", "Bản đồ Nhiệt & Vết Cháy Tức thời", "D:/main_workspace/dev/wildfire/thermal_map/", 45, "B", "in_progress"),
-        ("CHAY_RUNG", "MOD_05", "Điều khiển Góc quay PTZ (ONVIF)", "D:/main_workspace/dev/wildfire/ptz_control/", 90, "A", "in_progress"),
-
-        # Trụ cột Biến động rừng (Module 16 - 27)
-        ("BIEN_DONG", "MOD_16", "Thu nhận Ảnh Vệ tinh Sentinel-2", "D:/main_workspace/dev/wildfire/satellite_pipeline/", 90, "A", "in_progress"),
-        ("BIEN_DONG", "MOD_17", "Tính toán Chỉ số NDVI & NBR", "D:/main_workspace/dev/wildfire/gis_indices/", 70, "B+", "in_progress"),
-        ("BIEN_DONG", "MOD_18", "Phát hiện Rừng bị Chặt hạ (Change)", "D:/main_workspace/dev/wildfire/deforestation_ai/", 35, "C", "in_progress"),
-
-        # Trụ cột An ninh rừng (Module 28 - 38)
-        ("AN_NINH", "MOD_28", "Nhận diện Người/Xe Xâm nhập Trái phép", "D:/main_workspace/dev/wildfire/intrusion_detect/", 80, "A", "in_progress"),
-        ("AN_NINH", "MOD_29", "Phát hiện Âm thanh Tiếng cưa máy", "D:/main_workspace/dev/wildfire/audio_sensor/", 50, "B", "in_progress"),
-        ("AN_NINH", "MOD_30", "Bẫy ảnh Hồng ngoại Ban đêm", "D:/main_workspace/dev/wildfire/night_traps/", 25, "C", "in_progress"),
+        ("CHAY_RUNG", "MOD_01", "Thu nhận RTSP Camera Dahua PTZ", "Bạn Nam", "D:/main_workspace/dev/wildfire/camera_service/", 100, "A+", "2026-08-01", "2026-09-15", "completed"),
+        ("CHAY_RUNG", "MOD_02", "Nhận diện Khói Lửa YOLOv8", "Bạn Huy", "D:/main_workspace/dev/wildfire/ai_models/smoke/", 85, "A", "2026-08-15", "2026-10-20", "in_progress"),
+        ("CHAY_RUNG", "MOD_03", "Trạm Khí tượng & Chỉ số Nesterov", "Bạn Tuấn", "D:/main_workspace/dev/wildfire/weather_fwi/", 60, "B+", "2026-09-01", "2026-11-01", "in_progress"),
+        ("CHAY_RUNG", "MOD_05", "Điều khiển Góc quay PTZ (ONVIF)", "Bạn Tuấn", "D:/main_workspace/dev/wildfire/ptz_control/", 90, "A", "2026-09-10", "2026-10-25", "in_progress"),
+        ("BIEN_DONG", "MOD_16", "Thu nhận Ảnh Vệ tinh Sentinel-2", "Bạn Trang", "D:/main_workspace/dev/wildfire/satellite_pipeline/", 90, "A", "2026-08-10", "2026-10-15", "in_progress"),
+        ("BIEN_DONG", "MOD_17", "Tính toán Chỉ số NDVI & NBR", "Bạn Trang", "D:/main_workspace/dev/wildfire/gis_indices/", 70, "B+", "2026-09-01", "2026-11-10", "in_progress"),
+        ("AN_NINH", "MOD_28", "Nhận diện Người/Xe Xâm nhập", "Bạn Huy", "D:/main_workspace/dev/wildfire/intrusion_detect/", 80, "A", "2026-09-05", "2026-11-15", "in_progress"),
+        ("AN_NINH", "MOD_29", "Phát hiện Âm thanh Tiếng cưa máy", "Bạn Hoàng", "D:/main_workspace/dev/wildfire/audio_sensor/", 50, "B", "2026-09-15", "2026-12-01", "in_progress"),
     ]
     cur.executemany("""
-        INSERT INTO modules (pillar_id, code, name, ssot_path, progress_pct, quality_score, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO modules (pillar_id, code, name, tech_lead, ssot_path, progress_pct, quality_score, start_date, deadline, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, modules)
 
-    # 3. Nạp Bảng đối chiếu Task của Dev
-    cur.execute("DELETE FROM dev_tasks")
-    dev_tasks = [
-        ("MOD_01", "Bạn Nam (BE)", "Fix lỗi buffer overflow khi mất kết nối RTSP", "passed", "fix/rtsp-buffer", "PR #12", "Đã test 48h liên tục không leak RAM"),
-        ("MOD_02", "Bạn Huy (AI)", "Train lại YOLOv8x thêm 5,000 ảnh khói mù sương", "in_progress", "ai/yolo-smoke-v2", "PR #15", "Đang train epoch 65/100"),
-        ("MOD_05", "Bạn Tuấn (IoT)", "Viết API điều khiển Zoom 30x Camera qua giao thức ONVIF", "review_pending", "feat/onvif-zoom", "PR #18", "Cần lead duyệt chuẩn delay < 100ms"),
-        ("MOD_17", "Bạn Trang (GIS)", "Tối ưu hàm tính NBR raster bằng thư viện Rasterio song song", "passed", "feat/raster-parallel", "PR #14", "Giảm thời gian xử lý từ 12s xuống 1.5s"),
-        ("MOD_29", "Bạn Hoàng (DSP)", "Lọc nhiễu tiếng gió và tiếng côn trùng trước khi đưa vào AudioNet", "in_progress", "ai/audio-filter", "PR #20", "Độ chính xác hiện tại 78%"),
+    # 3. Phân rã Kỹ thuật sâu (Chức năng -> Thuật toán -> Bộ lọc)
+    cur.execute("DELETE FROM tech_breakdown")
+    techs = [
+        ("MOD_01", "Stream Đa Luồng Chống Nghẽn", "Python 3.11, OpenCV FFMPEG, AsyncIO", 
+         "Non-blocking Frame Ingest, Circular Ring Buffer", "Drop Late Frame Filter, TCP KeepAlive", "Bạn Nam (BE)", "Đảm bảo độ trễ < 200ms"),
+        ("MOD_02", "Nhận diện Cột Khói Xa (>3km)", "PyTorch, TensorRT FP16, CUDA 12", 
+         "YOLOv8x + Multi-scale Feature Pyramid (FPN)", "CLAHE Cân bằng Sáng, Bộ lọc Nhiễu Sương mù Morlet", "Bạn Huy (AI)", "Đã train 85 epoch, mAP@0.5 đạt 89.2%"),
+        ("MOD_03", "Dự báo Nguy cơ Cháy Cấp 1-5", "NumPy, Pandas, SciPy", 
+         "Công thức Nesterov P = T * (T - Td) tích lũy, Rothermel Fire Spread", "Bộ lọc Làm mịn Dữ liệu Khí tượng Kalman", "Bạn Tuấn (IoT)", "Tự động kích hoạt khi P > 4,000"),
+        ("MOD_17", "Phân tích Tổn thất Tán Rừng", "Rasterio, GDAL, GeoPandas", 
+         "Chỉ số NBR = (NIR - SWIR2)/(NIR + SWIR2), NDVI = (NIR - RED)/(NIR + RED)", "Cloud Masking SCL (Lọc mây bóng mây)", "Bạn Trang (GIS)", "Xử lý song song 8 CPU core"),
+        ("MOD_29", "Nhận diện Tiếng Cưa Xích Dã Ngoại", "Librosa, PyTorch, Torchaudio", 
+         "Mel-Spectrogram 128 dải tần + Mạng CNN AudioNet", "Bandpass Filter 500Hz - 4000Hz (Cắt tiếng gió)", "Bạn Hoàng (DSP)", "Tỷ lệ nhận diện đúng 91.5% trong môi trường rừng")
     ]
     cur.executemany("""
-        INSERT INTO dev_tasks (module_code, dev_name, task_title, status, code_branch, pr_link, notes)
+        INSERT INTO tech_breakdown (module_code, feature_name, tech_stack, algorithms, filters, developer, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, dev_tasks)
+    """, techs)
 
-    # 4. Nạp Bảng Chỉ mục Đường dẫn & Bản vẽ Tài liệu (Sếp hỏi gõ ra ngay!)
-    cur.execute("DELETE FROM path_index")
-    paths = [
-        ("Bản vẽ Kiến trúc Hệ thống Tổng thể", "BẢN VẼ KIẾN TRÚC", "D:/main_workspace/docs/architecture/system_overview_v2.png", "Sơ đồ kiến trúc toàn cảnh 3 trụ cột kết nối trạm camera, vệ tinh và máy chủ trung tâm", "ALL"),
-        ("Bản vẽ Luồng Dữ liệu RTSP & AI Pipeline", "BẢN VẼ KIẾN TRÚC", "D:/main_workspace/docs/architecture/rtsp_ai_pipeline.svg", "Sơ đồ luồng dữ liệu thời gian thực từ camera PTZ về cụm GPU xử lý", "MOD_01"),
-        ("Tài liệu Đặc tả Giao thức ONVIF Camera Dahua", "TÀI LIỆU KỸ THUẬT", "D:/main_workspace/docs/specs/Dahua_PTZ_ONVIF_ProfileS_Spec.pdf", "Tài liệu đặc tả lệnh xoay Pan/Tilt/Zoom và Preset góc quan sát", "MOD_05"),
-        ("File Cấu hình Mạng & Địa chỉ IP 12 Trạm Camera", "FILE CẤU HÌNH", "D:/main_workspace/dev/wildfire/config/camera_network_ip.yaml", "Chứa toàn bộ IP tĩnh, cổng RTSP và mật khẩu trạm camera", "MOD_01"),
-        ("Trọng số Mô hình YOLOv8 Khói Lửa Tốt Nhất", "WEIGHTS MODEL", "D:/main_workspace/dev/wildfire/weights/smoke_best_v8x.pt", "Trọng số TensorRT tối ưu cho GPU GTX 1050Ti/RTX", "MOD_02"),
-        ("Tài liệu Thuật toán Dự báo Nguy cơ Cháy Nesterov", "TÀI LIỆU KỸ THUẬT", "D:/main_workspace/docs/algorithms/Nesterov_Fire_Risk_Formulas.docx", "Công thức toán học tính chỉ số P dựa trên nhiệt độ và độ ẩm lúc 13h", "MOD_03"),
-        ("Bản đồ Ranh giới Rừng Phòng hộ Thanh Hóa (Shapefile)", "TÀI LIỆU KỸ THUẬT", "D:/main_workspace/gis_data/thanh_hoa_protection_forest.shp", "Dữ liệu lớp phủ không gian ranh giới 7 huyện vùng cao Thanh Hóa", "MOD_17"),
+    # 4. Tài liệu chi tiết (Tác giả, Ngày tạo, Phụ trách, Đường dẫn)
+    cur.execute("DELETE FROM document_catalog")
+    docs = [
+        ("Bản vẽ Kiến trúc Hệ thống Tổng thể 3 Trụ Cột", "BẢN VẼ KIẾN TRÚC", "D:/main_workspace/docs/architecture/system_overview_v2.png", 
+         "Kỹ sư Trưởng (Lead)", "Kỹ sư Trưởng (Lead)", "Kiến trúc Tổng quan", "kien_truc,tong_the,3_tru_cot,system", "2026-08-10", "ALL"),
+        ("Bản vẽ Luồng Dữ liệu RTSP & AI Pipeline", "BẢN VẼ KIẾN TRÚC", "D:/main_workspace/docs/architecture/rtsp_ai_pipeline.svg", 
+         "Bạn Nam", "Kỹ sư Trưởng (Lead)", "Xử lý Video", "luong_du_lieu,rtsp,camera,opencv", "2026-08-25", "MOD_01"),
+        ("Đặc tả Giao thức ONVIF Điều khiển Camera Dahua", "TÀI LIỆU KỸ THUẬT", "D:/main_workspace/docs/specs/Dahua_PTZ_ONVIF_ProfileS_Spec.pdf", 
+         "Hãng Dahua", "Bạn Tuấn", "Giao thức Thiết bị", "dahua,onvif,ptz,spec", "2026-09-02", "MOD_05"),
+        ("Công thức Toán học Chỉ số Nguy cơ Cháy Nesterov", "TÀI LIỆU KỸ THUẬT", "D:/main_workspace/docs/algorithms/Nesterov_Fire_Risk_Formulas.docx", 
+         "Viện Điều tra Quy hoạch Rừng", "Bạn Tuấn", "Thuật toán Lâm nghiệp", "nesterov,chay_rung,khi_tuong,cong_thuc", "2026-09-05", "MOD_03"),
+        ("File Cấu hình Mạng & Địa chỉ IP 12 Trạm Camera", "FILE CẤU HÌNH", "D:/main_workspace/dev/wildfire/config/camera_network_ip.yaml", 
+         "Bạn Nam", "Bạn Nam", "Hạ tầng Mạng", "camera,ip,config,yaml,mat_khau", "2026-09-12", "MOD_01"),
+        ("Trọng số Mô hình YOLOv8 Khói Lửa Tốt Nhất", "WEIGHTS MODEL", "D:/main_workspace/dev/wildfire/weights/smoke_best_v8x.pt", 
+         "Bạn Huy", "Kỹ sư Trưởng (Lead)", "Trọng số AI", "yolo,weights,pt,smoke,fire", "2026-09-28", "MOD_02")
     ]
     cur.executemany("""
-        INSERT INTO path_index (item_title, item_type, full_path, description, module_code)
-        VALUES (?, ?, ?, ?, ?)
-    """, paths)
+        INSERT INTO document_catalog (title, doc_type, full_path, author, assignee, category, tags, created_date, module_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, docs)
 
-    # 5. Nạp Sơ đồ Mermaid
+    # 5. Sơ đồ Mermaid (Tác giả, Người duyệt, Tags)
     cur.execute("DELETE FROM mermaid_vault")
     diagrams = [
         ("Bản vẽ Luồng Camera PTZ và YOLO", "CHAY_RUNG", "MOD_01", "flowchart", 
-         "flowchart LR\n A[Camera Dahua PTZ (RTSP)] -->|TCP| B[OpenCV VideoCapture]\n B -->|Threaded Queue| C[YOLOv8 Smoke AI]\n C -->|Alert > 80%| D[MinIO S3 & WebSocket GIS]", "camera,ptz,rtsp,yolo,dahua,kien_truc"),
+         "flowchart LR\n A[Camera Dahua PTZ] -->|TCP Transport| B[OpenCV VideoCapture]\n B -->|Ring Buffer| C[YOLOv8 Smoke AI]\n C -->|Alert > 80%| D[MinIO S3 & WebSocket GIS]", 
+         "Bạn Nam", "Kỹ sư Trưởng (Lead)", "camera,ptz,rtsp,yolo,dahua,kien_truc"),
+        ("Quy trình Phân tích Ảnh Viễn thám Sentinel-2", "BIEN_DONG", "MOD_16", "sequenceDiagram",
+         "sequenceDiagram\n Copernicus API->>Worker: Tải ảnh GeoTIFF Đa phổ\n Worker->>Index Calc: Tính NBR & NDVI đa luồng\n Index Calc->>GIS Dashboard: Xuất Layer Vùng Cháy", 
+         "Bạn Trang", "Kỹ sư Trưởng (Lead)", "ve_tinh,sentinel,ndvi,nbr,gis"),
         ("Quy trình Đa Tác nhân Antigravity & Claude Code", "ALL", "ALL", "sequenceDiagram",
-         "sequenceDiagram\n Lead->>Antigravity: Giao việc & Review\n Antigravity->>SQLite: Tra cứu Path & Lỗi cũ\n Antigravity->>ClaudeCode: Ủy quyền sửa code nhánh Dev\n ClaudeCode-->>Lead: Báo cáo kết quả test", "multi_agent,quy_trinh,claude,antigravity"),
-        ("Kiến trúc Bản đồ Vệ tinh Sentinel-2", "BIEN_DONG", "MOD_16", "flowchart",
-         "flowchart TD\n Sat[Vệ tinh Sentinel-2] --> Copernicus[Copernicus API] --> Worker[GeoTIFF Worker] --> Calc[Tính NDVI & NBR] --> Map[Leaflet GIS Dashboard]", "ve_tinh,sentinel,ndvi,gis,copernicus")
+         "sequenceDiagram\n Lead->>Antigravity: Giao việc & Review\n Antigravity->>SQLite: Tra cứu Path & Lỗi cũ trong 1ms\n Antigravity->>ClaudeCode: Giao refactor code\n ClaudeCode-->>Lead: Báo cáo kết quả test", 
+         "Kỹ sư Trưởng (Lead)", "Kỹ sư Trưởng (Lead)", "multi_agent,quy_trinh,claude,antigravity")
     ]
     cur.executemany("""
-        INSERT INTO mermaid_vault (title, pillar_id, module_code, diagram_type, diagram_code, tags)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO mermaid_vault (title, pillar_id, module_code, diagram_type, diagram_code, author, reviewer, tags)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, diagrams)
 
-    # 6. Nạp Bộ nhớ Lỗi
+    # 6. Bảng Git & Pull Requests
+    cur.execute("DELETE FROM git_pull_requests")
+    prs = [
+        (12, "Fix lỗi buffer overflow khi mất kết nối RTSP Camera", "MOD_01", "Bạn Nam (BE)", "Kỹ sư Trưởng (Lead)", "fix/rtsp-buffer", "2026-09-14", "merged", "Đã test 48h không leak RAM"),
+        (14, "Tối ưu hóa tính toán NBR raster song song bằng Rasterio", "MOD_17", "Bạn Trang (GIS)", "Kỹ sư Trưởng (Lead)", "feat/raster-parallel", "2026-09-20", "merged", "Thời gian xử lý giảm 8x"),
+        (15, "Huấn luyện lại YOLOv8x với 5,000 ảnh khói sương mù", "MOD_02", "Bạn Huy (AI)", "Kỹ sư Trưởng (Lead)", "ai/yolo-smoke-v2", "2026-10-02", "open", "Đang train epoch 85/100"),
+        (18, "Tích hợp API Zoom 30x Camera qua chuẩn ONVIF", "MOD_05", "Bạn Tuấn (IoT)", "Kỹ sư Trưởng (Lead)", "feat/onvif-zoom", "2026-10-05", "open", "Chờ kiểm thử độ trễ kết nối")
+    ]
+    cur.executemany("""
+        INSERT INTO git_pull_requests (pr_number, title, module_code, author, reviewer, branch_name, created_date, status, summary)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, prs)
+
+    # 7. Bảng Nhật ký Kiểm thử QA/Test
+    cur.execute("DELETE FROM qa_test_runs")
+    tests = [
+        ("MOD_01", "Stress-test 48h Luồng RTSP", "tests/test_rtsp_stress.py", "Bạn Nam", "2026-09-14", "Ubuntu 22.04 Docker", "PASSED", 25.0, 160.0, "FPS ổn định 25fps, latency 160ms"),
+        ("MOD_02", "Inference Benchmark YOLOv8x TensorRT", "tests/test_yolo_benchmark.py", "Bạn Huy", "2026-10-01", "Windows 11 (GPU GTX 1050Ti)", "PASSED", 32.5, 30.8, "FP16 tối ưu, VRAM chiếm 2.1GB"),
+        ("MOD_17", "Kiểm thử Tính Chỉ số NBR 4 Tỉnh Bắc Trung Bộ", "tests/test_nbr_calc.py", "Bạn Trang", "2026-09-22", "Linux Server 32GB RAM", "PASSED", 0.0, 1500.0, "Xử lý thành công file 8.4GB trong 1.5s"),
+        ("MOD_05", "Đo Độ Trễ Điều Khiển Góc Xoay ONVIF", "tests/test_onvif_latency.py", "Bạn Tuấn", "2026-10-06", "Windows Local Lab", "FAILED", 0.0, 450.0, "Độ trễ 450ms vượt ngưỡng cho phép 200ms")
+    ]
+    cur.executemany("""
+        INSERT INTO qa_test_runs (module_code, test_name, test_file, tester, test_date, environment, result, fps, latency_ms, error_log)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, tests)
+
+    # 8. Ký ức Lỗi
     cur.execute("DELETE FROM error_memories")
     errors = [
         ("Lỗi drop frame và timeout RTSP Camera Dahua sau 2h", 
-         "1. Ép OPENCV_FFMPEG_CAPTURE_OPTIONS=rtsp_transport;tcp\n2. Tăng buffer kích thước 2048\n3. Dùng vòng lặp luồng ngầm giải phóng frame cũ liên tục", "camera,ptz,rtsp,opencv,drop_frame", "MOD_01"),
+         "1. Ép OPENCV_FFMPEG_CAPTURE_OPTIONS=rtsp_transport;tcp\n2. Tăng buffer kích thước 2048\n3. Luồng ngầm giải phóng frame cũ liên tục", "camera,ptz,rtsp,opencv,drop_frame", "MOD_01"),
         ("Lỗi CUDA out of memory khi chạy mô hình YOLOv8x trên GPU 4GB", 
-         "1. Giảm batch size về 1\n2. Chuyển mô hình sang TensorRT FP16 (tiết kiệm 50% VRAM)\n3. Set biến torch.cuda.empty_cache()", "yolo,cuda,vram,gpu,oom", "MOD_02"),
+         "1. Giảm batch size về 1\n2. Chuyển sang TensorRT FP16 (tiết kiệm 50% VRAM)\n3. Gọi torch.cuda.empty_cache() sau mỗi batch", "yolo,cuda,vram,gpu,oom", "MOD_02"),
         ("Lỗi tràn RAM khi nạp ảnh GeoTIFF vệ tinh kích thước 4GB",
-         "Sử dụng thư viện Rasterio đọc theo từng block cửa sổ nhỏ (windowed reading) thay vì nạp toàn bộ mảng numpy", "rasterio,geotiff,ram,sentinel", "MOD_17"),
+         "Sử dụng Rasterio windowed reading để đọc theo khối block 512x512 thay vì nạp toàn bộ ảnh vào RAM", "rasterio,geotiff,ram,sentinel", "MOD_17")
     ]
     cur.executemany("""
         INSERT INTO error_memories (problem_summary, solution_steps, tags, module_code)
@@ -183,37 +265,52 @@ def seed_full_ecosystem():
 
     conn.commit()
     conn.close()
-    print("[OK] Đã nạp thành công 100% Hệ sinh thái AI Brain Core tại: " + str(DB_PATH))
+    print("[OK] Đã nạp thành công 100% CSDL Kỹ thuật Phần mềm Toàn diện tại: " + str(DB_PATH))
 
-def quick_find(keyword):
-    """Tìm kiếm siêu tốc mọi tài liệu, bản vẽ, đường dẫn, task dev, sơ đồ trong 0.001s"""
+def find_all(keyword):
+    """Tìm kiếm siêu tốc mọi ngóc ngách: Tài liệu, Bản vẽ, Sơ đồ, Thuật toán, PR, Test, Lỗi"""
     conn = get_conn()
     cur = conn.cursor()
-
     t0 = time.time()
-    
-    # 1. Tìm trong Bảng Chỉ mục Đường dẫn & Bản vẽ
-    cur.execute("""
-        SELECT item_title, item_type, full_path, description, module_code 
-        FROM path_index WHERE path_index MATCH ? LIMIT 10
-    """, (keyword,))
-    paths = cur.fetchall()
 
-    # 2. Tìm trong Kho Sơ đồ Mermaid
+    # 1. Tài liệu & Bản vẽ
     cur.execute("""
-        SELECT title, diagram_type, diagram_code, module_code, tags
+        SELECT title, doc_type, full_path, author, assignee, category, created_date, module_code
+        FROM document_catalog WHERE document_catalog MATCH ? LIMIT 5
+    """, (keyword,))
+    docs = cur.fetchall()
+
+    # 2. Phân rã Kỹ thuật & Thuật toán
+    cur.execute("""
+        SELECT module_code, feature_name, tech_stack, algorithms, filters, developer, notes
+        FROM tech_breakdown WHERE tech_breakdown MATCH ? LIMIT 5
+    """, (keyword,))
+    techs = cur.fetchall()
+
+    # 3. Sơ đồ Mermaid
+    cur.execute("""
+        SELECT title, diagram_type, diagram_code, author, reviewer, module_code
         FROM mermaid_vault WHERE mermaid_vault MATCH ? LIMIT 5
     """, (keyword,))
     diagrams = cur.fetchall()
 
-    # 3. Tìm trong Task của Dev
+    # 4. Git & Pull Requests
     cur.execute("""
-        SELECT module_code, dev_name, task_title, status, pr_link, notes
-        FROM dev_tasks WHERE dev_name LIKE ? OR task_title LIKE ? OR module_code LIKE ? LIMIT 5
-    """, (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"))
-    tasks = cur.fetchall()
+        SELECT pr_number, title, module_code, author, reviewer, branch_name, status, created_date
+        FROM git_pull_requests 
+        WHERE title LIKE ? OR author LIKE ? OR module_code LIKE ? OR branch_name LIKE ? LIMIT 5
+    """, (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"))
+    prs = cur.fetchall()
 
-    # 4. Tìm trong Bộ nhớ lỗi
+    # 5. Nhật ký Kiểm thử QA
+    cur.execute("""
+        SELECT module_code, test_name, test_file, tester, test_date, result, fps, latency_ms, error_log
+        FROM qa_test_runs
+        WHERE test_name LIKE ? OR module_code LIKE ? OR tester LIKE ? LIMIT 5
+    """, (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"))
+    tests = cur.fetchall()
+
+    # 6. Ký ức Lỗi
     cur.execute("""
         SELECT problem_summary, solution_steps, module_code
         FROM error_memories WHERE error_memories MATCH ? LIMIT 5
@@ -222,106 +319,98 @@ def quick_find(keyword):
 
     t_db = (time.time() - t0) * 1000
 
-    print("\n" + "="*85)
-    print(f" 🔍 KẾT QUẢ TÌM KIẾM NHANH: '{keyword}' (Thời gian: {t_db:.2f} ms | Tiêu tốn: 0 Token)")
-    print("="*85)
+    print("\n" + "="*90)
+    print(f" 🔍 TRA CỨU TOÀN DIỆN KỸ THUẬT: '{keyword}' (Thời gian: {t_db:.2f} ms | Tiêu tốn: 0 Token)")
+    print("="*90)
 
-    if paths:
-        print("\n📁 [BẢN VẼ, TÀI LIỆU & ĐƯỜNG DẪN Ổ CỨNG]:")
-        for p in paths:
-            print(f"  • [{p['item_type']}] {p['item_title']} (Module: {p['module_code']})")
-            print(f"    ➔ ĐƯỜNG DẪN: {p['full_path']}")
-            print(f"    ➔ Mô tả: {p['description']}\n")
+    if docs:
+        print("\n📁 [TÀI LIỆU, BẢN VẼ & ĐƯỜNG DẪN Ổ CỨNG]:")
+        for d in docs:
+            print(f"  • [{d['doc_type']}] {d['title']} (Module: {d['module_code']})")
+            print(f"    ➔ ĐƯỜNG DẪN: {d['full_path']}")
+            print(f"    ➔ Tác giả: {d['author']} | Phụ trách: {d['assignee']} | Ngày tạo: {d['created_date']}\n")
+
+    if techs:
+        print("\n⚙️ [PHÂN RÃ KỸ THUẬT, THUẬT TOÁN & BỘ LỌC]:")
+        for tc in techs:
+            print(f"  • Module [{tc['module_code']}]: {tc['feature_name']} (Dev: {tc['developer']})")
+            print(f"    ➔ Công nghệ: {tc['tech_stack']}")
+            print(f"    ➔ Thuật toán: {tc['algorithms']}")
+            print(f"    ➔ Bộ lọc: {tc['filters']}\n")
 
     if diagrams:
         print("\n📊 [SƠ ĐỒ KIẾN TRÚC MERMAID]:")
-        for d in diagrams:
-            print(f"  • Tiêu đề: {d['title']} ({d['diagram_type']}) [Module: {d['module_code']}]")
+        for dg in diagrams:
+            print(f"  • {dg['title']} ({dg['diagram_type']}) [Tác giả: {dg['author']} | Duyệt: {dg['reviewer']}]")
             print("  Mã Mermaid:")
-            print("  ```mermaid\n  " + d['diagram_code'].replace("\n", "\n  ") + "\n  ```\n")
+            print("  ```mermaid\n  " + dg['diagram_code'].replace("\n", "\n  ") + "\n  ```\n")
 
-    if tasks:
-        print("\n👨‍💻 [ĐỐI CHIẾU TIẾN ĐỘ TASK CỦA DEV]:")
-        for t in tasks:
-            print(f"  • Dev: {t['dev_name']} | Module: {t['module_code']} | Trạng thái: {t['status'].upper()}")
-            print(f"    ➔ Task: {t['task_title']} ({t['pr_link']})")
-            print(f"    ➔ Ghi chú: {t['notes']}\n")
+    if prs:
+        print("\n🐙 [GIT & PULL REQUESTS]:")
+        for p in prs:
+            status_str = f"[{p['status'].upper()}]"
+            print(f"  • PR #{p['pr_number']}: {p['title']} {status_str}")
+            print(f"    ➔ Người tạo: {p['author']} | Reviewer: {p['reviewer']} | Nhánh: {p['branch_name']} ({p['created_date']})\n")
+
+    if tests:
+        print("\n🧪 [NHẬT KÝ KIỂM THỬ QA & CHẤT LƯỢNG]:")
+        for ts in tests:
+            res_str = f"[{ts['result']}]"
+            print(f"  • {ts['test_name']} {res_str} (Module: {ts['module_code']})")
+            print(f"    ➔ File test: {ts['test_file']} | Tester: {ts['tester']} ({ts['test_date']})")
+            print(f"    ➔ Hiệu năng: {ts['fps']} FPS | Độ trễ: {ts['latency_ms']} ms | Ghi chú: {ts['error_log']}\n")
 
     if errors:
-        print("\n🧠 [KÝ ỨC SỬA LỖI & KINH NGHIỆM ĐÃ TEST]:")
+        print("\n🧠 [KÝ ỨC LỖI & GIẢI PHÁP ĐÃ TEST THÀNH CÔNG]:")
         for e in errors:
             print(f"  • Lỗi: {e['problem_summary']} (Module: {e['module_code']})")
             print(f"    ➔ Cách sửa: {e['solution_steps']}\n")
 
-    if not paths and not diagrams and not tasks and not errors:
-        print(f"  [!] Không tìm thấy mục nào khớp với từ khóa '{keyword}'.")
+    if not docs and not techs and not diagrams and not prs and not tests and not errors:
+        print(f"  [!] Không tìm thấy dữ liệu nào khớp với từ khóa '{keyword}'.")
 
-    print("="*85 + "\n")
+    print("="*90 + "\n")
     conn.close()
 
 def show_progress():
-    """Hiển thị bảng tiến độ % của 3 Trụ cột và Modules"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-        SELECT p.name AS pillar_name, m.code, m.name, m.progress_pct, m.quality_score, m.status, m.ssot_path
+        SELECT p.name AS pillar_name, m.code, m.name, m.tech_lead, m.progress_pct, m.start_date, m.deadline, m.status
         FROM modules m JOIN pillars p ON m.pillar_id = p.id
         ORDER BY p.id, m.code
     """)
     rows = cur.fetchall()
 
-    print("\n" + "="*85)
-    print(" 📊 BẢNG THEO DÕI TIẾN ĐỘ % THỰC TẾ (3 TRỤ CỘT & 38 MODULE LÂM NGHIỆP)")
-    print("="*85)
+    print("\n" + "="*95)
+    print(" 📊 BẢNG TIẾN ĐỘ 38 MODULE LÂM NGHIỆP (TIẾN ĐỘ %, THỜI HẠN & TECH LEAD)")
+    print("="*95)
     current_pillar = None
     for r in rows:
         if r['pillar_name'] != current_pillar:
             current_pillar = r['pillar_name']
             print(f"\n📂 [{current_pillar}]")
         
-        bar_len = 16
+        bar_len = 15
         filled = int(r['progress_pct'] / 100 * bar_len)
         bar = "█" * filled + "░" * (bar_len - filled)
-        print(f"  [{r['code']}] {r['name']:<38} | {bar} {r['progress_pct']:>3}% | Điểm: {r['quality_score']} | {r['status']}")
-    print("="*85 + "\n")
-    conn.close()
-
-def show_dev_tasks():
-    """Hiển thị toàn bộ task của team dev"""
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT dt.module_code, m.name AS module_name, dt.dev_name, dt.task_title, dt.status, dt.code_branch, dt.pr_link, dt.notes
-        FROM dev_tasks dt JOIN modules m ON dt.module_code = m.code
-        ORDER BY dt.dev_name
-    """)
-    rows = cur.fetchall()
-
-    print("\n" + "="*85)
-    print(" 👨‍💻 BẢNG THEO DÕI TIẾN ĐỘ TASK CỦA CÁC DEV (DEV TASK TRACKER)")
-    print("="*85)
-    for r in rows:
-        status_badge = f"[{r['status'].upper()}]"
-        print(f"{r['dev_name']:<18} | {r['module_code']} - {r['module_name']:<25} | {status_badge:<12}")
-        print(f"  ➔ Task: {r['task_title']} ({r['pr_link']} @ {r['code_branch']})")
-        print(f"  ➔ Đánh giá/Ghi chú: {r['notes']}\n")
-    print("="*85 + "\n")
+        deadline_str = f"Hạn: {r['deadline']}" if r['deadline'] else ""
+        print(f"  [{r['code']}] {r['name']:<35} | {bar} {r['progress_pct']:>3}% | Lead: {r['tech_lead']:<9} | {deadline_str:<15} | {r['status']}")
+    print("="*95 + "\n")
     conn.close()
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         cmd = sys.argv[1].lower()
         if cmd == "init":
-            seed_full_ecosystem()
+            seed_enterprise_data()
         elif cmd in ["find", "search"]:
-            kw = sys.argv[2] if len(sys.argv) > 2 else "kiến trúc"
-            quick_find(kw)
+            kw = sys.argv[2] if len(sys.argv) > 2 else "camera"
+            find_all(kw)
         elif cmd == "progress":
             show_progress()
-        elif cmd in ["dev", "tasks", "dev-tasks"]:
-            show_dev_tasks()
         else:
-            quick_find(sys.argv[1])
+            find_all(sys.argv[1])
     else:
-        seed_full_ecosystem()
+        seed_enterprise_data()
         show_progress()
